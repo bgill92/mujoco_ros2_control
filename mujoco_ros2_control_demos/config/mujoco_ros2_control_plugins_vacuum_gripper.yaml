@@ -1,0 +1,20 @@
+/**:
+  ros__parameters:
+    mujoco_plugins:
+      vacuum_part1:
+        type: "mujoco_ros2_control_plugins/VacuumGripperPlugin"
+        gripper_body: vacuum_pad
+        part_body: part1
+        eq_name: vacuum_weld_part1
+      vacuum_part2:
+        type: "mujoco_ros2_control_plugins/VacuumGripperPlugin"
+        gripper_body: vacuum_pad
+        part_body: part2
+        eq_name: vacuum_weld_part2
+      part_state_publisher:
+        type: "mujoco_ros2_control_plugins/FreeJointStatePublisherPlugin"
+        body_names:
+          - part1
+          - part2
+        topic: free_joint_states
+        publish_rate: 50.0

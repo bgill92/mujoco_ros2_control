@@ -17,6 +17,7 @@ Full documentation is maintained in RST format:
 | `ExternalWrenchPlugin` | Applies external wrenches to MuJoCo bodies via a ROS 2 service |
 | `BaseVelocityPlugin` | Drives a mobile/floating-base robot from a `cmd_vel`-style topic via a direct free-joint velocity override, independent of wheel-ground contact |
 | `FreeJointStatePublisherPlugin` | Publishes the pose/velocity of free-joint bodies to a topic, in a selectable reference frame |
+| `VacuumGripperPlugin` | Suction pick-up: activates an MJCF weld equality constraint at runtime (no-snap) while the vacuum is latched and the gripper/part bodies are in contact |
 | `Mujoco3dLidarPlugin` | Republishes MuJoCo lidar-extension sensor data as `LaserScan`/`PointCloud2` messages |
 | `RangefinderLidarPlugin` | **[Deprecated]** Wraps MuJoCo rangefinder sensors as `LaserScan` publishers |
 

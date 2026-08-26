@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Vacuum gripper demo scene.
+
+  <compiler fusestatic="false"/> is set in the ROOT file. MuJoCo >= 3.x defaults to
+  fusestatic="false" and never fuses bodies referenced by equality constraints, so the
+  fixed vacuum_pad body survives either way; the tag is kept explicit for portability to
+  older MuJoCo versions (default fusestatic="true") and to document intent.
+
+  Part positions (x = 1.6 / 1.3) are tuned so the two-link arm (1.0 m links, base at
+  z = 1.2) can press the pad onto each part with the pad axis near vertical — see the
+  pose table in 06_vacuum_gripper_plugin.launch.py.
+-->
+<mujoco model="vacuum_gripper_scene">
+  <!-- angle="radian": MuJoCo's default angle unit is DEGREES; joint ranges and
+       ctrlranges below are given in radians. -->
+  <compiler fusestatic="false" angle="radian"/>
+  <include file="vacuum_robot.xml"/>
+
+  <statistic center="1 0 0.6" extent="2.5"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.1 0.1 0.1" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="120" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3"
+      markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane" texture="groundplane" texuniform="true" texrepeat="5 5"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 1.5" dir="0 0 -1" directional="true"/>
+    <geom conaffinity="0" contype="1" material="groundplane" name="floor" pos="0 0 0" size="0 0 0.01" type="plane"/>
+    <!-- Pick-up targets: free-joint boxes on the floor, 0.3 m apart. The pad (r = 0.04)
+         presses on their top faces (z = 0.04). -->
+    <body name="part1" pos="1.6 0 0.02">
+      <freejoint/>
+      <inertial pos="0 0 0" mass="0.5" diaginertia="0.001 0.001 0.001"/>
+      <geom type="box" size="0.05 0.05 0.02" rgba="1 0 0 1"/>
+    </body>
+    <body name="part2" pos="1.3 0 0.02">
+      <freejoint/>
+      <inertial pos="0 0 0" mass="0.5" diaginertia="0.001 0.001 0.001"/>
+      <geom type="box" size="0.05 0.05 0.02" rgba="0 1 0 1"/>
+    </body>
+  </worldbody>
+  <equality>
+    <!-- Inactive welds, one per pick-up. VacuumGripperPlugin activates them at runtime
+         (no-snap rewrite of eq_data); body1 = gripper side, body2 = part side. -->
+    <weld name="vacuum_weld_part1" body1="vacuum_pad" body2="part1" active="false"/>
+    <weld name="vacuum_weld_part2" body1="vacuum_pad" body2="part2" active="false"/>
+  </equality>
+</mujoco>

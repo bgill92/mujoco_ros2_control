@@ -24,6 +24,7 @@ set(srv_files
   srv/StepSimulation.srv
   srv/ApplyExternalWrench.srv
   srv/SetFreeJointState.srv
+  srv/WeldState.srv
 )
 
 

@@ -51,6 +51,7 @@ add_library(mujoco_ros2_control_plugins_impl SHARED
   src/base_velocity_plugin.cpp
   src/free_joint_state_publisher_plugin.cpp
   src/camera_plugin.cpp
+  src/vacuum_gripper_plugin.cpp
   src/mujoco_3d_lidar_plugin.cpp
   # TODO: Remove once this has been fully deprecated
   src/rangefinder_lidar_plugin.cpp
@@ -175,6 +176,23 @@ if(BUILD_TESTING)
     ${geometry_msgs_TARGETS}
   )
   target_link_options(test_base_velocity_plugin PUBLIC
+    "LINKER:--push-state,--no-as-needed"
+    "$<TARGET_LINKER_FILE:tinyxml2::tinyxml2>"
+    "LINKER:--pop-state"
+  )
+
+  ament_add_gtest(test_vacuum_gripper_plugin
+    test/test_vacuum_gripper_plugin.cpp
+  )
+  target_include_directories(test_vacuum_gripper_plugin PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+  )
+  target_link_libraries(test_vacuum_gripper_plugin
+    mujoco_ros2_control_plugins_impl
+    ${mujoco_ros2_control_msgs_TARGETS}
+    ${std_srvs_TARGETS}
+  )
+  target_link_options(test_vacuum_gripper_plugin PUBLIC
     "LINKER:--push-state,--no-as-needed"
     "$<TARGET_LINKER_FILE:tinyxml2::tinyxml2>"
     "LINKER:--pop-state"
