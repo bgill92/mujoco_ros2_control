@@ -1,0 +1,4 @@
+---
+bool weld_active
+bool vacuum_enabled
+string message
