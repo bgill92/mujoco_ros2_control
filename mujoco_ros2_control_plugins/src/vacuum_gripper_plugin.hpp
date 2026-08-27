@@ -34,11 +34,12 @@ namespace mujoco_ros2_control_plugins
  * joined by a weld equality constraint (`mjEQ_WELD`) that is declared in MJCF with
  * `active="false"` and activated at runtime by this plugin.
  *
- * The gripper latches a *vacuum* state via the `~/activate` trigger. The weld is active iff
- * the vacuum is on **and** the two bodies are in contact, re-evaluated on every physics step
- * in `pre_step()`. Release is explicit (`~/release` trigger) or automatic on contact loss
- * (the vacuum stays latched, so re-contact re-engages the weld without a new `activate`).
- * `~/reset_world` (the core ResetWorld service) clears everything.
+ * The gripper latches a *vacuum* state via the `~/activate` trigger (rejected unless the
+ * bodies are in contact). The weld engages on the next physics step and then **stays
+ * active until `~/release` or a world reset** — there is no auto-release: the weld
+ * constraint keeps the part pinned, and a part dragged away while latched is pulled back
+ * to the held pose by the constraint itself. `~/reset_world` (the core ResetWorld service)
+ * clears everything.
  *
  * Services (namespaced per instance, e.g. `/mujoco_ros2_control_node/vacuum_part1/...`):
  * - `~/activate`   (std_srvs/srv/Trigger) — latch the vacuum. Rejected with `success=false`
@@ -110,12 +111,6 @@ private:
 
   double prev_step_time_{-1.0};  ///< defensive reset detection (time backwards); primary path
                                  ///< is the world_reset() hook (resets preserve sim time)
-
-  // Center-to-center gripper/part distance at the last engage(); auto-release fires only
-  // when the part separates by more than kReleaseMargin (see pre_step) — the weld pins the
-  // part rigidly, so while holding the distance stays at this value even though the
-  // surface contact pair can drop out of MuJoCo's contact margin while riding.
-  double hold_dist_{0.0};
 };
 
 }  // namespace mujoco_ros2_control_plugins

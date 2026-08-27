@@ -598,13 +598,10 @@ The weld is re-evaluated on **every physics step**:
   reset). It is rejected while the bodies are not in contact.
 - Contact is detected each step from MuJoCo's contact list (any geom pair of the two
   bodies with ``dist <= 0``).
-- The weld engages when the vacuum is latched **and** the bodies are in contact. While
-  holding, the part rides rigidly at the engage-time distance, so auto-release keys off
-  genuine separation, not the live contact list: the weld deactivates only when the
-  part–gripper center distance grows by more than a small margin (0.05 m) beyond the
-  engage-time value (e.g. the part falling away, or the pad moving out of the part).
-  The vacuum stays latched — re-establishing contact re-engages the weld without a new
-  ``activate`` call.
+- The weld engages when the vacuum is latched **and** the bodies are in contact, and then
+  **stays active until ``release`` or a world reset** — there is no auto-release. While
+  holding, the part is pinned rigidly by the weld constraint: a part dragged away while
+  latched is pulled back to the held pose by the constraint itself.
 
 Services (per instance, at the top level under the plugin key, e.g.
 ``/vacuum_part1/...``):

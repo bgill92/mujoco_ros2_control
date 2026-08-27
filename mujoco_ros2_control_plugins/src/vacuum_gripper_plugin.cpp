@@ -14,17 +14,7 @@
 
 #include "vacuum_gripper_plugin.hpp"
 
-#include <cmath>
 #include <string>
-
-namespace
-{
-// A held part rides rigidly at the engage-time center distance, but its surface contact
-// pair can drop out of MuJoCo's contact margin while riding (and reappear). Auto-release
-// therefore keys off genuine body separation: the weld drops only when the part has moved
-// away from the gripper by more than this margin beyond the engage-time distance.
-constexpr double kReleaseMargin = 0.05;  // metres
-}  // namespace
 
 #include <mujoco/mujoco.h>
 #include <pluginlib/class_list_macros.hpp>
@@ -206,7 +196,10 @@ void VacuumGripperPlugin::pre_step(mjData* data)
     vacuum_enabled_ = true;
   }
 
-  // 4) Weld bookkeeping. Constraint is active iff vacuum-on AND in contact.
+  // 4) Weld bookkeeping. The weld engages when the vacuum is latched and the bodies are
+  //    in contact, and then STAYS active until ~/release or a world reset: there is no
+  //    auto-release. The weld constraint keeps the part pinned — a part dragged away
+  //    while latched is pulled back to the held pose by the constraint itself.
   if (!vacuum_enabled_)
   {
     if (data->eq_active[eq_id_])
@@ -217,24 +210,6 @@ void VacuumGripperPlugin::pre_step(mjData* data)
   else if (in_contact && !data->eq_active[eq_id_])
   {
     engage(data, model);  // no-snap eq_data write, then activate
-  }
-  else if (data->eq_active[eq_id_])
-  {
-    // Auto-release on genuine separation (part fell away / knocked clear), not on the
-    // live contact list: while the weld holds, the part rides rigidly at hold_dist_ and
-    // the surface contact pair is not reliable (it can drop out of the contact margin
-    // mid-ride and reappear a few steps later).
-    const mjtNum* xp = data->xpos + part_body_id_ * 3;
-    const mjtNum* xg = data->xpos + gripper_body_id_ * 3;
-    const mjtNum dx = xp[0] - xg[0];
-    const mjtNum dy = xp[1] - xg[1];
-    const mjtNum dz = xp[2] - xg[2];
-    const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
-    if (dist > hold_dist_ + kReleaseMargin)
-    {
-      data->eq_active[eq_id_] = 0;  // part is gone; vacuum stays latched, re-contact
-                                     // while vacuum-on re-engages automatically
-    }
   }
   weld_active_ = data->eq_active[eq_id_];
 }
@@ -272,14 +247,6 @@ void VacuumGripperPlugin::engage(mjData* data, const mjModel* model)
   eqd[8] = q1[0] * q2[2] + q1[1] * q2[3] - q1[2] * q2[0] - q1[3] * q2[1];
   eqd[9] = q1[0] * q2[3] - q1[1] * q2[2] + q1[2] * q2[1] - q1[3] * q2[0];
   // eqd[10] (torquescale): leave the author's MJCF value untouched.
-
-  // Record the engage-time center distance (see kReleaseMargin in pre_step).
-  const mjtNum* xp = data->xpos + part_body_id_ * 3;
-  const mjtNum* xg = data->xpos + gripper_body_id_ * 3;
-  const mjtNum dx = xp[0] - xg[0];
-  const mjtNum dy = xp[1] - xg[1];
-  const mjtNum dz = xp[2] - xg[2];
-  hold_dist_ = std::sqrt(dx * dx + dy * dy + dz * dz);
 
   data->eq_active[eq_id_] = 1;
 }

@@ -422,7 +422,7 @@ TEST_F(VacuumGripperPluginTest, EngageWritesEqDataHoldingCurrentPose)
   plugin.cleanup();
 }
 
-TEST_F(VacuumGripperPluginTest, ContactLossDeactivatesWeldButKeepsVacuum)
+TEST_F(VacuumGripperPluginTest, WeldStaysActiveWhenPartMovesAway)
 {
   placePartAt(kContactPartZ);
   mujoco_ros2_control_plugins::VacuumGripperPlugin plugin;
@@ -438,44 +438,27 @@ TEST_F(VacuumGripperPluginTest, ContactLossDeactivatesWeldButKeepsVacuum)
   plugin.pre_step(data_);
   ASSERT_EQ(data_->eq_active[eq_id_], 1);
 
-  // Part swings clear of the pad while the vacuum stays latched.
+  // Part is dragged far away while the vacuum stays latched: the weld must NOT drop
+  // (no auto-release) — the constraint keeps holding and pulls the part back to the
+  // held pose.
   placePartAt(kClearPartZ);
-  plugin.pre_step(data_);
-  EXPECT_EQ(data_->eq_active[eq_id_], 0) << "weld must drop on contact loss";
+  for (int i = 0; i < 200; ++i)
+  {
+    plugin.pre_step(data_);
+    mj_step(model_, data_);
+  }
+  EXPECT_EQ(data_->eq_active[eq_id_], 1) << "weld must persist while the vacuum is latched";
 
   WeldState::Response::SharedPtr ws;
   ASSERT_TRUE(callWeldState(ws));
-  EXPECT_FALSE(ws->weld_active);
-  EXPECT_TRUE(ws->vacuum_enabled) << "vacuum must stay latched on contact loss";
-  EXPECT_EQ(ws->message, "vacuum on, not in contact");
+  EXPECT_TRUE(ws->weld_active);
+  EXPECT_TRUE(ws->vacuum_enabled);
+  EXPECT_EQ(ws->message, "weld active");
 
-  plugin.cleanup();
-}
-
-TEST_F(VacuumGripperPluginTest, RecontactReengagesWithoutNewActivate)
-{
-  placePartAt(kContactPartZ);
-  mujoco_ros2_control_plugins::VacuumGripperPlugin plugin;
-  setParam("gripper_body", "gripper");
-  setParam("part_body", "part");
-  setParam("eq_name", "vacuum_weld");
-  ASSERT_TRUE(plugin.init(plugin_node_, model_, data_));
-
-  plugin.pre_step(data_);
-  Trigger::Response::SharedPtr resp;
-  ASSERT_TRUE(callActivate(resp));
-  ASSERT_TRUE(resp->success);
-  plugin.pre_step(data_);
-  ASSERT_EQ(data_->eq_active[eq_id_], 1);
-
-  placePartAt(kClearPartZ);
-  plugin.pre_step(data_);
-  ASSERT_EQ(data_->eq_active[eq_id_], 0);
-
-  // Vacuum is still latched: re-establishing contact re-engages the weld.
-  placePartAt(kContactPartZ);
-  plugin.pre_step(data_);
-  EXPECT_EQ(data_->eq_active[eq_id_], 1);
+  // The weld constraint re-pinned the part at the engage pose, it did not fall away.
+  const int qadr = model_->jnt_qposadr[model_->body_jntadr[part_body_id_]];
+  EXPECT_GT(data_->qpos[qadr + 2], kContactPartZ - 0.05)
+    << "weld must keep the part at the held pose";
 
   plugin.cleanup();
 }

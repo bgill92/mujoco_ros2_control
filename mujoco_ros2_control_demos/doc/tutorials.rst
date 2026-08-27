@@ -136,11 +136,10 @@ Demonstrates ``VacuumGripperPlugin``: a two-link planar arm with a cylindrical s
 picks up free-joint box "parts" lying on the floor. Each part has its own plugin instance
 and its own inactive MJCF weld equality constraint; the plugin activates the weld at
 runtime — with a no-snap rewrite of ``eq_data`` so the part is held where it is — when the
-vacuum is latched **and** the pad is in contact with the part. While holding, the part is
-pinned rigidly, so auto-release keys off genuine separation (the part–gripper center
-distance growing past the engage-time value by more than a 0.05 m margin); otherwise the
-weld deactivates only on an explicit ``release``, and re-contact while the vacuum is still
-latched re-engages it.
+vacuum is latched **and** the pad is in contact with the part. The weld then stays active
+until an explicit ``release`` or a world reset — there is no auto-release: while holding,
+the part is pinned rigidly by the weld constraint, and a part dragged away while latched
+is pulled back to the held pose by the constraint itself.
 
 .. code-block:: bash
 

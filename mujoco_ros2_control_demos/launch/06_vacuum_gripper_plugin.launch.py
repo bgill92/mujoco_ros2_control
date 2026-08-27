@@ -73,14 +73,12 @@ Demo sequence:
        -> success: true, "vacuum latched; weld engages on the next physics step"
        ros2 service call /vacuum_part1/weld_state mujoco_ros2_control_msgs/srv/WeldState
        -> weld_active: true
-    3. Lift: command neutral [0.0, 0.0] -- part1 rides up rigidly with the pad and the
-       weld stays active while riding (auto-release keys off genuine separation, not the
-       contact list).
+    3. Lift: command neutral [0.0, 0.0] -- part1 rides up rigidly with the pad; the weld
+       stays active while riding (no auto-release; the constraint keeps the part pinned).
     4. Release: ros2 service call /vacuum_part1/release std_srvs/srv/Trigger
        -> success: true, "vacuum released" -- the weld deactivates immediately and part1
        falls. A welded part is pinned rigidly to the pad, so setting it down always
-       requires an explicit release (or the part separating by more than the 0.05 m
-       release margin, e.g. a failed hold).
+       requires an explicit release (the weld has no auto-release).
     5. Park: command drop [-0.35, 0.5] to move the arm away clear of both parts.
     6. Pick part2: command press2 [1.26, -1.23], then
        ros2 service call /vacuum_part2/activate std_srvs/srv/Trigger

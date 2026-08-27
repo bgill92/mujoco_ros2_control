@@ -12,10 +12,11 @@ engage, release, in contact). Use those terms in code, logs, and docs.
 
 One plugin instance owns one suction pickup: a pair of MJCF bodies (gripper side + part side)
 joined by a **weld equality constraint** (`mjEQ_WELD`) that is declared in MJCF, inactive, and
-activated at runtime by the plugin. The gripper latches a *vacuum* state via a ROS 2 trigger. The
-weld is **active iff vacuum-on AND the two bodies are in contact**, re-evaluated on every physics
-step in `pre_step()`. Release is explicit (trigger) or happens automatically when the part
-separates from the gripper. ResetWorld clears everything.
+activated at runtime by the plugin. The gripper latches a *vacuum* state via a ROS 2 trigger,
+which is rejected unless the two bodies are in contact. The weld engages on the next physics
+step and then **stays active until explicit release or ResetWorld** — there is no auto-release:
+the weld constraint keeps the part pinned (a part dragged away while latched is pulled back to
+the held pose by the constraint itself). ResetWorld clears everything.
 
 One instance = one (gripper body, part body, weld eq) triple. Multiple grippers = multiple
 instances (see demo, §6).
@@ -155,7 +156,7 @@ callback and drain, the vacuum latches and the weld simply waits for re-contact.
 - Always `success=true`. Sets `vacuum_enabled_ = false` immediately (clears any pending activate
   too: `pending_activate_ = false`).
 - `message`: `"vacuum released"` if it was latched, else `"no vacuum latched"`.
-- `pre_step` deactivates the eq on the next step (or it is already off via contact loss).
+- `pre_step` deactivates the eq on the next step.
 
 **`~/weld_state`** (WeldState):
 
@@ -202,7 +203,8 @@ void VacuumGripperPlugin::pre_step(mjData* data)
     vacuum_enabled_ = true;
   }
 
-  // 4) Weld bookkeeping. Constraint is active iff vacuum-on AND in contact.
+  // 4) Weld bookkeeping. The weld engages when the vacuum is latched and the bodies are
+  //    in contact, and then stays active until ~/release or a world reset (no auto-release).
   if (!vacuum_enabled_)
   {
     if (data->eq_active[eq_id_])
@@ -214,31 +216,25 @@ void VacuumGripperPlugin::pre_step(mjData* data)
   {
     engage(data, model);             // no-snap eq_data write, then activate (see §4.6)
   }
-  else if (!in_contact && data->eq_active[eq_id_])
-  {
-    data->eq_active[eq_id_] = 0;     // contact loss breaks the hold (vacuum stays latched;
-                                     // re-contact while vacuum-on re-engages automatically)
-  }
   weld_active_ = data->eq_active[eq_id_];
 }
 ```
 
-> **Implementation note (deviation).** While the weld is holding, the part rides rigidly at
+> **Implementation note (deviation).** The sketch above used contact loss to break the hold.
+> That was observed to be unreliable: while the weld is holding, the part rides rigidly at
 > the engage-time center distance, but the surface contact pair can drop out of MuJoCo's
-> contact margin mid-ride (and reappear a few steps later). Keying auto-release off the live
-> contact list therefore drops a *held* part during the lift. The implementation instead
-> records the center-to-center distance in `engage()` and auto-releases only when it grows
-> by more than `kReleaseMargin` (0.05 m) — the observable spec behavior is preserved (part
-> falls on drop-away; re-contact while vacuum-on re-engages).
+> contact margin mid-ride (and reappear a few steps later), so contact-loss release drops a
+> *held* part during the lift. The implementation therefore has **no auto-release**: once
+> engaged, the weld stays active until `release` or a world reset, and the weld constraint
+> itself keeps the part pinned (a part dragged away while latched is pulled back to the held
+> pose).
 
-Resulting state machine (all transitions live in the table above):
+Resulting state machine:
 
 | From | Event | To |
 |---|---|---|
 | any | `activate`, in contact | vacuum on; weld engages same/next step |
 | any | `activate`, NOT in contact | rejected (`success=false`), nothing changes |
-| vacuum on, in contact | part separates by > `kReleaseMargin` (0.05 m) from the engage-time center distance | weld off, vacuum stays on |
-| vacuum on, weld off | contact re-established | weld re-engages (recomputed relative pose) |
 | any | `release` | vacuum off; weld off next step |
 | any | ResetWorld | vacuum off, weld off (core restores `eq_active` to `eq_active0`; plugin cleared via `world_reset()` hook) |
 
@@ -482,12 +478,11 @@ All of the following must pass:
    - `release` → `weld_state` → `weld_active: false`; part1 falls back to floor z.
 5. **Pick part2** (same sequence, instance `vacuum_part2`, reaching joint values) — proves
    per-instance namespacing and that instance 1 stays inactive.
-6. **Separation drop**: with the vacuum latched, the part must be separated from the pad by
-   more than `kReleaseMargin` (0.05 m beyond the engage-time center distance) to auto-release:
-   `weld_active` goes false while `vacuum_enabled` stays true, and re-contact re-engages the
-   weld. A rigid weld pins the part, so the demo flow cannot shake it off by moving the arm —
-   this is covered by unit tests (`ContactLossDeactivatesWeldButKeepsVacuum`,
-   `RecontactReengagesWithoutNewActivate`); the demo uses an explicit `release` to set parts down.
+6. **Set the part down**: the weld has no auto-release — a rigid weld pins the part, so
+   setting it down in the demo flow requires an explicit `release` (then move the arm away
+   and the part falls). The persist-until-release semantics are covered by the unit test
+   `WeldStaysActiveWhenPartMovesAway` (part dragged away while latched: the weld stays
+   active and the constraint pulls the part back to the held pose).
 7. **ResetWorld**: with the weld active and the vacuum latched,
    `ros2 service call /mujoco_ros2_control_node/reset_world mujoco_ros2_control_msgs/srv/ResetWorld`
    → success; then `weld_state` → `vacuum_enabled: false`, `weld_active: false`; parts back at
@@ -502,11 +497,11 @@ All of the following must pass:
 2. **Service/topic FQNs**: plugin sub-nodes expose their services at the top level under the
    instance key (`/vacuum_part1/activate`, `/part_state_publisher/free_joint_states`), not
    under a `/simulator` prefix as sketched above.
-3. **Separation-based auto-release** (`kReleaseMargin` = 0.05 m): the contact-list-based
-   release of §4.5 drops held parts mid-lift, because the surface contact pair can fall out of
-   MuJoCo's ~2 cm contact margin while the part rides rigidly on the weld. The engage-time
-   center-to-center distance is stored and the weld auto-releases only when the part is further
-   away than that value plus the margin (see the note after the `pre_step` listing in §4.5).
+3. **No auto-release**: the contact-loss release of the §4.5 sketch drops held parts mid-lift,
+   because the surface contact pair can fall out of MuJoCo's contact margin while the part
+   rides rigidly on the weld. The implementation therefore never auto-releases: once engaged,
+   the weld stays active until `release` or a world reset, and the constraint itself keeps the
+   part pinned (see the note after the `pre_step` listing in §4.5).
 4. **Core changes (beyond §8's "no core changes" scope, required for acceptance step 7)**:
    - `MujocoSimulation::reset_world_state` now also restores `mjData::eq_active` from
      `mjModel::eq_active0` — the qpos/qvel/ctrl restore left runtime-activated equality
