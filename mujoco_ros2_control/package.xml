@@ -38,7 +38,6 @@
   <depend>rosgraph_msgs</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-  <depend>tinyxml2_vendor</depend>
   <depend>mujoco_ros2_control_msgs</depend>
   <depend>mujoco_ros2_control_plugins</depend>
   <depend>transmission_interface</depend>
