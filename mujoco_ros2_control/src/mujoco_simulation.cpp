@@ -876,9 +876,7 @@ void MujocoSimulation::reset_world_state(bool fill_initial_state,
   std::fill(mj_data_->qfrc_applied, mj_data_->qfrc_applied + mj_model_->nv, 0.0);
   std::fill(mj_data_->xfrc_applied, mj_data_->xfrc_applied + 6 * mj_model_->nbody, 0.0);
 
-  // Restore equality-constraint activations to their MJCF defaults: plugins may activate
-  // constraints at runtime, and a reset must return them to the authored state (this field
-  // is not touched by the qpos/qvel/ctrl restore above).
+  // Restore equality-constraint activations to their MJCF defaults
   std::copy(mj_model_->eq_active0, mj_model_->eq_active0 + mj_model_->neq, mj_data_->eq_active);
 
   {

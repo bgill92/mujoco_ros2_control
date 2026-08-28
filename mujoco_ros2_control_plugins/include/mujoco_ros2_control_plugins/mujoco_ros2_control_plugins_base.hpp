@@ -37,11 +37,9 @@ namespace mujoco_ros2_control_plugins
  *   e.g. a hard kinematic override. There's no command buffer: an untouched entry keeps its
  *   last value, so releasing a command (e.g. an expired force) needs an explicit write. This
  *   should be used with caution!
- * - `world_reset()` runs on the control thread immediately after a world reset (ResetWorld
- *   service or a detected UI reset), with the live `mj_data_` in its post-reset state. Use
- *   this to clear plugin bookkeeping that refers to the pre-reset world (latched states,
- *   cached ids that are still valid, ...). Note that the reset preserves simulation time
- *   (ROS clock continuity), so detect resets via this hook, not by watching `data->time`.
+ * - `on_reset_world()` runs immediately after a world reset, with the live `mj_data_` in its
+ *   post-reset state. Use this to clear plugin state that refers to the pre-reset world,
+ *   e.g. a latched command.
  *
  * @note All hooks must avoid blocking or the control loop or simulation itself will be held up!
  */
@@ -83,10 +81,11 @@ public:
   }
 
   /**
-   * @brief Called after a world reset, on the control thread. Default does nothing.
+   * @brief Called after a world reset (ResetWorld service or UI reset). Default does nothing.
+   *
    * @param data Pointer to the live MuJoCo data in its post-reset state.
    */
-  virtual void world_reset(mjData* /*data*/)
+  virtual void on_reset_world(mjData* /*data*/)
   {
   }
 

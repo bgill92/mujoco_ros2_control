@@ -2213,7 +2213,7 @@ void MujocoSystemInterface::reset_simulation_state(bool /*fill_initial_state*/)
   // eq_active has already been restored to MJCF defaults.
   for (auto& plugin : plugin_instances_)
   {
-    plugin->world_reset(simulation_->data());
+    plugin->on_reset_world(simulation_->data());
   }
 }
 
