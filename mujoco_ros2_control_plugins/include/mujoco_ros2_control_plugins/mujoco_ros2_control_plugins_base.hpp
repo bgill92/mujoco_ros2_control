@@ -37,7 +37,7 @@ namespace mujoco_ros2_control_plugins
  *   e.g. a hard kinematic override. There's no command buffer: an untouched entry keeps its
  *   last value, so releasing a command (e.g. an expired force) needs an explicit write. This
  *   should be used with caution!
- * - `on_reset_world()` runs immediately after a world reset, with the live `mj_data_` in its
+ * - `on_reset()` runs immediately after a world reset, with the live `mj_data_` in its
  *   post-reset state. Use this to clear plugin state that refers to the pre-reset world,
  *   e.g. a latched command.
  *
@@ -85,7 +85,7 @@ public:
    *
    * @param data Pointer to the live MuJoCo data in its post-reset state.
    */
-  virtual void on_reset_world(mjData* /*data*/)
+  virtual void on_reset(mjData* /*data*/)
   {
   }
 

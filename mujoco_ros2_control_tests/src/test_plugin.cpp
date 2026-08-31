@@ -18,7 +18,7 @@ public:
   void update(const mjModel*, mjData*) override
   {
   }
-  void on_reset_world(mjData*) override
+  void on_reset(mjData*) override
   {
     std_msgs::msg::UInt32 msg;
     msg.data = ++world_reset_count_;

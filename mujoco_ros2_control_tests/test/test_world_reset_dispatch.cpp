@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// End-to-end check of the on_reset_world plugin hook: the out-of-package TestPlugin is loaded
-// through the `mujoco_plugins` parameter namespace and must have its on_reset_world() called
+// End-to-end check of the on_reset plugin hook: the out-of-package TestPlugin is loaded
+// through the `mujoco_plugins` parameter namespace and must have its on_reset() called
 // when the reset_world service resets the simulation.
 
 #include <gtest/gtest.h>
@@ -167,7 +167,7 @@ TEST_F(WorldResetDispatchTest, ResetWorldServiceDispatchesWorldResetToPlugins)
 {
   ASSERT_EQ(initialize_interface(), hardware_interface::CallbackReturn::SUCCESS);
 
-  // TestPlugin publishes its on_reset_world call count (latched) from its plugin sub-namespace.
+  // TestPlugin publishes its on_reset call count (latched) from its plugin sub-namespace.
   std::atomic<uint32_t> world_reset_count{ 0 };
   auto count_sub = node_->create_subscription<std_msgs::msg::UInt32>(
       "/test_plugin/world_reset_count", rclcpp::QoS(1).transient_local(),
@@ -186,5 +186,5 @@ TEST_F(WorldResetDispatchTest, ResetWorldServiceDispatchesWorldResetToPlugins)
   ASSERT_TRUE(reset_future.get()->success);
 
   EXPECT_TRUE(wait_until([&]() { return world_reset_count.load() == 1u; }))
-      << "on_reset_world() was not dispatched to the loaded plugin on reset_world";
+      << "on_reset() was not dispatched to the loaded plugin on reset_world";
 }
