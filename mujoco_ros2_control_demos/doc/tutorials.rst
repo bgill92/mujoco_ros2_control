@@ -129,6 +129,68 @@ odometry (``odom_free_joint_name``).
 See :doc:`../../mujoco_ros2_control_plugins/doc/plugins` for the full list of ``BaseVelocityPlugin`` parameters.
 
 
+Tutorial 6: Vacuum Gripper Plugin
+---------------------------------
+
+Demonstrates ``VacuumGripperPlugin``: a two-link planar arm with a cylindrical suction pad
+picks up free-joint box "parts" lying on the floor. Each part has its own plugin instance
+and its own inactive MJCF weld equality constraint; the plugin activates the weld at
+runtime — with a no-snap rewrite of ``eq_data`` so the part is held where it is — when the
+vacuum is latched **and** the pad is in contact with the part. The weld then stays active
+until an explicit ``release`` or a world reset — there is no auto-release: while holding,
+the part is pinned rigidly by the weld constraint, and a part dragged away while latched
+is pulled back to the held pose by the constraint itself.
+
+.. code-block:: bash
+
+   ros2 launch mujoco_ros2_control_demos 06_vacuum_gripper_plugin.launch.py
+
+   # Drive the arm:  neutral / press part1 / press part2 / drop
+   ros2 topic pub /arm_position_controller/commands std_msgs/msg/Float64MultiArray "data: [0.0, 0.0]"
+   ros2 topic pub /arm_position_controller/commands std_msgs/msg/Float64MultiArray "data: [0.83, -0.55]"
+   ros2 topic pub /arm_position_controller/commands std_msgs/msg/Float64MultiArray "data: [1.26, -1.23]"
+   ros2 topic pub /arm_position_controller/commands std_msgs/msg/Float64MultiArray "data: [-0.35, 0.5]"
+
+   # Vacuum services (one triplet per part):
+   ros2 service call /vacuum_part1/activate std_srvs/srv/Trigger
+   ros2 service call /vacuum_part1/release  std_srvs/srv/Trigger
+   ros2 service call /vacuum_part1/weld_state mujoco_ros2_control_msgs/srv/WeldState
+
+   # Watch the picked parts (free-joint states at 50 Hz):
+   ros2 topic echo /part_state_publisher/free_joint_states
+
+**Try it (full sequence, from the launch file docstring):**
+
+1. At the neutral pose (no contact), call ``activate`` → rejected: *"bodies not in contact"*.
+2. Command press1 ``[0.83, -0.55]``, wait for the pad to settle on part1, call
+   ``vacuum_part1/activate`` → ``success: true``; ``weld_state`` reports the weld active.
+3. Command neutral ``[0.0, 0.0]`` — part1 rides up rigidly with the pad (watch its pose
+   in the ``free_joint_states`` topic) and the weld stays active.
+4. Call ``vacuum_part1/release`` → the weld deactivates immediately and part1 falls
+   (a welded part is pinned rigidly, so setting it down needs an explicit release).
+   Then command drop ``[-0.35, 0.5]`` to park the arm away from the parts.
+5. Command press2 ``[1.26, -1.23]`` and call ``vacuum_part2/activate`` → part2 is gripped
+   independently of part1's (released) instance state.
+6. With part2's vacuum still latched, call
+   ``/mujoco_ros2_control_node/reset_world`` → the world returns to its initial state and
+   all plugin state clears (vacuum off, welds off).
+
+**Key concepts:** runtime activation of MJCF weld equality constraints, no-snap
+``eq_data`` rewrite on engage, per-step contact detection in ``pre_step``, per-instance
+service namespacing (multiple independent grippers in one scene).
+
+**Resources:** ``demo_resources/vacuum_gripper/vacuum_scene.xml``,
+``demo_resources/vacuum_gripper/vacuum_robot.xml``,
+``demo_resources/vacuum_gripper/vacuum_robot.urdf``,
+``config/mujoco_ros2_control_plugins_vacuum_gripper.yaml``,
+``config/controllers_vacuum_gripper.yaml``
+
+See :doc:`../../mujoco_ros2_control_plugins/doc/plugins` for the full ``VacuumGripperPlugin``
+parameters and MJCF authoring notes, and
+``mujoco_ros2_control_plugins/doc/vacuum_gripper_plugin_spec.md`` in this repository for the design
+rationale.
+
+
 Combined Demo
 -------------
 
@@ -172,12 +234,15 @@ Package Structure
    │   ├── 03_pid_control.launch.py         # Tutorial 3
    │   ├── 04_transmissions.launch.py       # Tutorial 4
    │   ├── 05_base_velocity_plugin.launch.py # Tutorial 5
+   │   ├── 06_vacuum_gripper_plugin.launch.py  # Tutorial 6
    │   └── demo.launch.py                  # Combined demo
    ├── config/
    │   ├── controllers.yaml                        # Controller configuration
    │   ├── mujoco_pid.yaml                         # PID gains (Tutorial 3)
    │   ├── controllers_base_velocity.yaml          # joint_state_broadcaster + arm_position_controller (Tutorial 5)
-   │   └── mujoco_ros2_control_plugins_base_velocity.yaml  # BaseVelocityPlugin config (Tutorial 5)
+   │   ├── mujoco_ros2_control_plugins_base_velocity.yaml  # BaseVelocityPlugin config (Tutorial 5)
+   │   ├── controllers_vacuum_gripper.yaml         # joint_state_broadcaster + arm_position_controller (Tutorial 6)
+   │   └── mujoco_ros2_control_plugins_vacuum_gripper.yaml # VacuumGripperPlugin config (Tutorial 6)
    └── demo_resources/
        ├── robot/
        │   ├── test_robot.urdf          # Shared URDF description
@@ -191,6 +256,10 @@ Package Structure
        │   └── test_inputs.xml          # MJCF conversion inputs (Tutorial 2)
        ├── pid_control/
        │   └── test_robot_pid.xml       # Robot with motor actuators
-       └── mobile_base/
-           ├── mobile_base.xml          # MJCF chassis with freejoint (Tutorial 5)
-           └── mobile_base.urdf         # Minimal URDF, no ros2_control joints (Tutorial 5)
+       ├── mobile_base/
+       │   ├── mobile_base.xml          # MJCF chassis with freejoint (Tutorial 5)
+       │   └── mobile_base.urdf         # Minimal URDF, no ros2_control joints (Tutorial 5)
+       └── vacuum_gripper/
+           ├── vacuum_scene.xml         # Floor, two free-joint parts, inactive welds (Tutorial 6)
+           ├── vacuum_robot.xml         # Planar arm + suction pad (Tutorial 6)
+           └── vacuum_robot.urdf        # TF + ros2_control block (Tutorial 6)

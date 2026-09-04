@@ -581,6 +581,112 @@ Pass this file to the ``mujoco_ros2_control`` node via ``ParameterFile(...)`` in
    ``mujoco_ros2_control_demos/config/mujoco_ros2_control_plugins.yaml``.
 
 
+VacuumGripperPlugin
+-------------------
+
+The ``VacuumGripperPlugin`` implements suction pick-up behaviour for MuJoCo scenes: one
+plugin instance per suction pickup. Each instance owns a pair of MJCF bodies — the
+*gripper side* (e.g. a suction pad fixed to the arm) and the *part side* (the object to
+pick up) — joined by a **weld equality constraint** declared with ``active="false"`` in
+the MJCF. The plugin activates that constraint at runtime, with a no-snap rewrite of its
+``eq_data`` so the part is held exactly where it is instead of being pulled into the
+MJCF-declared relative pose.
+
+The weld is re-evaluated on **every physics step**:
+
+- Vacuum is latched by the ``activate`` service and cleared by ``release`` (or by a world
+  reset). It is rejected while the bodies are not in contact.
+- Contact is detected each step from MuJoCo's contact list (any geom pair of the two
+  bodies with ``dist <= 0``).
+- The weld engages when the vacuum is latched **and** the bodies are in contact, and then
+  **stays active until ``release`` or a world reset** — there is no auto-release. While
+  holding, the part is pinned rigidly by the weld constraint: a part dragged away while
+  latched is pulled back to the held pose by the constraint itself.
+
+Services (per instance, at the top level under the plugin key, e.g.
+``/vacuum_part1/...``):
+
+.. list-table::
+   :widths: 30 25 45
+   :header-rows: 1
+
+   * - Service
+     - Type
+     - Description
+   * - ``activate``
+     - ``std_srvs/srv/Trigger``
+     - Latch the vacuum. Fails (``success: false``) if the bodies are not in contact.
+   * - ``release``
+     - ``std_srvs/srv/Trigger``
+     - Clear the latched vacuum (the weld deactivates on the next step).
+   * - ``weld_state``
+     - ``mujoco_ros2_control_msgs/srv/WeldState``
+     - Report ``weld_active``, ``vacuum_enabled`` and a human-readable message.
+
+VacuumGripperPlugin Parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :widths: 25 15 15 45
+   :header-rows: 1
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - ``gripper_body``
+     - ``string``
+     - *required*
+     - MJCF body name on the gripper side of the weld (e.g. the suction pad).
+   * - ``part_body``
+     - ``string``
+     - *required*
+     - MJCF body name of the part to pick up. Must be a free-joint body.
+   * - ``eq_name``
+     - ``string``
+     - ``vacuum_weld``
+     - Name of the (inactive) weld equality constraint in the MJCF.
+
+MJCF authoring
+~~~~~~~~~~~~~~
+
+- Declare the weld with the gripper side first and the part side second, initially
+  inactive:
+
+  .. code-block:: xml
+
+     <equality>
+       <weld name="vacuum_weld_part1" body1="vacuum_pad" body2="part1" active="false"/>
+     </equality>
+
+- The part body must have a ``freejoint`` and both bodies need geoms on the touching
+  faces, so the contact detector can see the suction.
+- Set ``<compiler fusestatic="false"/>`` in the root scene file. Recent MuJoCo (>= 3.x)
+  defaults to ``fusestatic="false"`` and never fuses bodies referenced by equality
+  constraints, but older versions fuse fixed (joint-less) bodies such as the pad away,
+  which would make the name unresolvable.
+
+.. code-block:: yaml
+
+   /**:
+     ros__parameters:
+       mujoco_plugins:
+         vacuum_part1:
+           type: "mujoco_ros2_control_plugins/VacuumGripperPlugin"
+           gripper_body: vacuum_pad
+           part_body: part1
+           eq_name: vacuum_weld_part1
+         vacuum_part2:
+           type: "mujoco_ros2_control_plugins/VacuumGripperPlugin"
+           gripper_body: vacuum_pad
+           part_body: part2
+           eq_name: vacuum_weld_part2
+
+Each instance is independent: two parts can be held (or released) separately. See
+``mujoco_ros2_control_demos/launch/06_vacuum_gripper_plugin.launch.py`` (Tutorial 6) for
+a complete two-part demo with a scripted pick/drop sequence.
+
+
 Creating Your Own Plugin
 ------------------------
 

@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+<!--
+  Vacuum gripper demo robot (URDF for TF / robot_state_publisher only).
+
+  The simulation model is the MJCF scene (vacuum_scene.xml); this URDF exists to
+  publish the link tree (world -> base -> upperarm -> forearm -> vacuum_pad) so RViz
+  and tooling can resolve frames. Joint names (joint1, joint2) must match the MJCF
+  joints and the ros2_control block below.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="vacuum_gripper_robot">
+  <xacro:arg name="headless" default="false"/>
+
+  <link name="world"/>
+
+  <link name="base"/>
+  <joint name="base_joint" type="fixed">
+    <parent link="world"/>
+    <child link="base"/>
+    <origin rpy="0 0 0" xyz="0 0 1.2"/>
+  </joint>
+
+  <link name="upperarm">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.5 0 0"/>
+      <mass value="27.0"/>
+      <inertia ixx="0.0225" ixy="0.0" ixz="0.0" iyy="0.225" iyz="0.0" izz="0.225"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="1.0 0.1 0.1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.5 0 0"/>
+      <material name="red">
+        <color rgba="1.0 0 0 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.0 0.1 0.1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.5 0 0"/>
+    </collision>
+  </link>
+  <joint name="joint1" type="revolute">
+    <axis xyz="0 1 0"/>
+    <parent link="base"/>
+    <child link="upperarm"/>
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <limit effort="1000.0" lower="-3.14" upper="3.14" velocity="3.14"/>
+  </joint>
+
+  <link name="forearm">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0.5 0 0"/>
+      <mass value="27.0"/>
+      <inertia ixx="0.0225" ixy="0.0" ixz="0.0" iyy="0.225" iyz="0.0" izz="0.225"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="1.0 0.1 0.1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.5 0 0"/>
+      <material name="blue">
+        <color rgba="0 0 1 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.0 0.1 0.1"/>
+      </geometry>
+      <origin rpy="0 0 0" xyz="0.5 0 0"/>
+    </collision>
+  </link>
+  <joint name="joint2" type="revolute">
+    <axis xyz="0 1 0"/>
+    <parent link="upperarm"/>
+    <child link="forearm"/>
+    <origin rpy="0 0 0" xyz="1 0 0"/>
+    <limit effort="1000.0" lower="-3.14" upper="3.14" velocity="3.14"/>
+  </joint>
+
+  <link name="vacuum_pad">
+    <inertial>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0.0" ixz="0.0" iyy="0.001" iyz="0.0" izz="0.001"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <cylinder length="0.06" radius="0.04"/>
+      </geometry>
+      <material name="grey">
+        <color rgba="0.8 0.8 0.8 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder length="0.06" radius="0.04"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="vacuum_pad_joint" type="fixed">
+    <parent link="forearm"/>
+    <child link="vacuum_pad"/>
+    <origin rpy="0 0 0" xyz="1.0 0 -0.15"/>
+  </joint>
+
+  <ros2_control name="MujocoSystem" type="system">
+    <hardware>
+      <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
+      <param name="mujoco_model">$(find mujoco_ros2_control_demos)/demo_resources/vacuum_gripper/vacuum_scene.xml</param>
+      <!-- If set to true, will not launch the Simulate App window -->
+      <param name="headless">$(arg headless)</param>
+    </hardware>
+    <joint name="joint1">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="torque"/>
+    </joint>
+    <joint name="joint2">
+      <command_interface name="position"/>
+      <state_interface name="position">
+        <param name="initial_value">0.0</param>
+      </state_interface>
+      <state_interface name="velocity"/>
+      <state_interface name="effort"/>
+      <state_interface name="torque"/>
+    </joint>
+  </ros2_control>
+</robot>
